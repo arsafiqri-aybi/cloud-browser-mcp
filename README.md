@@ -1,20 +1,13 @@
 # Cloud Browser MCP
 
-Private browser-control MCP for ChatGPT.
+Private single-owner browser MCP for ChatGPT.
 
-## Production runtime
+## Runtime v1.2.0
 
-The deployable runtime uses Cloudflare Browser Run with `@cloudflare/playwright-mcp` and exposes Streamable HTTP only behind an unguessable private MCP path supplied as a Worker secret. The repository remains private.
+The production path uses Cloudflare Browser Run directly through the native browser binding and Chrome DevTools Protocol (CDP). It does not require npm browser libraries or Cloudflare Containers.
 
-The original uploaded Cloud Browser MCP 1.0.0 remains the design/reference baseline; this deployment path is adapted to the available Cloudflare Workers Free account so a real browser can run without requiring Cloudflare Containers.
+Implemented MCP tools: navigate, page snapshot with selectors, click, fill, key input, scroll, wait, back, screenshot, tabs, open/activate/close tab, and status/Live View metadata.
 
-## Security
+The public MCP endpoint is protected by a secret path stored as the Worker secret `MCP_PATH_TOKEN`. `/healthz` is public and reveals no secret.
 
-- MCP route is disabled unless `MCP_PATH_TOKEN` exists.
-- The public health endpoint reveals no token.
-- Do not commit the token or place it in logs.
-- Browser Run usage is limited by the Cloudflare account plan.
-
-## Deploy
-
-`npx wrangler deploy`
+The original uploaded 1.0.0 design remains the reference for future persistent-profile/admin-handoff parity. Browser Run sessions are plan-limited and are not equivalent to a permanently mounted Chromium profile.

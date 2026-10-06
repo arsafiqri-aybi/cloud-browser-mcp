@@ -1,25 +1,8 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "cloud-browser-mcp",
-  "main": "src/index.ts",
+  "main": "src/index.js",
   "workers_dev": true,
   "compatibility_date": "2026-10-06",
-  "compatibility_flags": ["nodejs_compat"],
-  "browser": {
-    "binding": "BROWSER"
-  },
-  "durable_objects": {
-    "bindings": [
-      {
-        "name": "MCP_OBJECT",
-        "class_name": "PlaywrightMCP"
-      }
-    ]
-  },
-  "migrations": [
-    {
-      "tag": "v1",
-      "new_sqlite_classes": ["PlaywrightMCP"]
-    }
-  ]
+  "browser": { "binding": "BROWSER" }
 }
