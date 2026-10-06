@@ -4,5 +4,8 @@
   "main": "src/index.js",
   "workers_dev": true,
   "compatibility_date": "2026-10-06",
-  "browser": { "binding": "BROWSER" }
+  "browser": { "binding": "BROWSER" },
+  "kv_namespaces": [
+    { "binding": "STATE", "id": "7132efc2432c41cabfdbfd017453a31f" }
+  ]
 }

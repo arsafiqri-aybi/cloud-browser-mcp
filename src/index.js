@@ -1,5 +1,5 @@
 const SERVER_NAME = "cloud-browser-mcp";
-const SERVER_VERSION = "1.2.0";
+const SERVER_VERSION = "1.2.1";
 const PROTOCOL_VERSION = "2025-06-18";
 
 const TOOLS = [
@@ -39,8 +39,10 @@ function safeInt(v, fallback, min, max) {
   return Math.max(min, Math.min(max, Math.trunc(n)));
 }
 
-async function ensureBrowserSession(env, request) {
-  const requested = request.headers.get("Mcp-Session-Id");
+async function ensureBrowserSession(env) {
+  const key = "active-browser-session";
+  let requested = null;
+  try { requested = await env.STATE.get(key); } catch (_) {}
   if (requested) {
     try {
       const current = await env.BROWSER.getSession(requested);
@@ -48,6 +50,7 @@ async function ensureBrowserSession(env, request) {
     } catch (_) {}
   }
   const created = await env.BROWSER.acquire({ keepAlive: 60000, targets: true, liveViewUrlExpiresInMs: 300000 });
+  try { await env.STATE.put(key, created.sessionId, { expirationTtl: 3600 }); } catch (_) {}
   return { sessionId: created.sessionId, reused: false, targets: created.targets || [] };
 }
 
@@ -254,13 +257,25 @@ async function runTool(env, browserSessionId, name, args = {}) {
 }
 
 async function handleMcp(request, env) {
-  if (request.method === "GET") return new Response("Method Not Allowed", { status: 405 });
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "allow": "POST, DELETE, OPTIONS",
+        "access-control-allow-methods": "POST, DELETE, OPTIONS",
+        "access-control-allow-headers": "content-type, accept, mcp-protocol-version, mcp-session-id"
+      }
+    });
+  }
+  if (request.method === "GET") return new Response("Method Not Allowed", { status: 405, headers: { "allow": "POST, DELETE, OPTIONS" } });
   if (request.method === "DELETE") {
-    const sid = request.headers.get("Mcp-Session-Id");
+    let sid = null;
+    try { sid = await env.STATE.get("active-browser-session"); } catch (_) {}
     if (sid) { try { await env.BROWSER.closeSession(sid); } catch (_) {} }
+    try { await env.STATE.delete("active-browser-session"); } catch (_) {}
     return new Response(null, { status: 204 });
   }
-  if (request.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
+  if (request.method !== "POST") return new Response("Method Not Allowed", { status: 405, headers: { "allow": "POST, DELETE, OPTIONS" } });
 
   let msg;
   try { msg = await request.json(); }
@@ -274,26 +289,26 @@ async function handleMcp(request, env) {
   if (method === "ping") return responseJson(jsonRpc(id, {}));
 
   if (method === "initialize") {
-    const browser = await ensureBrowserSession(env, request);
+    const requestedVersion = msg.params?.protocolVersion;
     return responseJson(jsonRpc(id, {
-      protocolVersion: PROTOCOL_VERSION,
+      protocolVersion: requestedVersion || PROTOCOL_VERSION,
       capabilities: { tools: { listChanged: false } },
       serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
-      instructions: "Use browser_snapshot before browser_click or browser_fill. This is a private Browser Run session."
-    }), 200, browser.sessionId);
+      instructions: "Use browser_snapshot before browser_click or browser_fill. Browser sessions are created lazily only when a browser tool is called."
+    }));
   }
 
-  if (method === "tools/list") return responseJson(jsonRpc(id, { tools: TOOLS }), 200, request.headers.get("Mcp-Session-Id") || undefined);
+  if (method === "tools/list") return responseJson(jsonRpc(id, { tools: TOOLS }));
 
   if (method === "tools/call") {
     try {
-      const browser = await ensureBrowserSession(env, request);
+      const browser = await ensureBrowserSession(env);
       const name = msg.params?.name;
       const args = msg.params?.arguments || {};
       const result = await runTool(env, browser.sessionId, name, args);
-      return responseJson(jsonRpc(id, result), 200, browser.sessionId);
+      return responseJson(jsonRpc(id, result));
     } catch (e) {
-      return responseJson(jsonRpc(id, { content: [{ type:"text", text:`Browser tool error: ${e?.message || String(e)}` }], isError: true }), 200, request.headers.get("Mcp-Session-Id") || undefined);
+      return responseJson(jsonRpc(id, { content: [{ type:"text", text:`Browser tool error: ${e?.message || String(e)}` }], isError: true }));
     }
   }
 
